@@ -1,184 +1,466 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>For You ❤️</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>For You</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Montserrat:wght@300;500&display=swap');
 
-<style>
-  body{
-    margin:0;
-    height:100vh;
-    display:flex;
-    background:#000;
-    color:#fff;
-    font-family: 'Segoe UI', sans-serif;
-  }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+        }
 
-  .left{
-    width:40%;
-    padding:40px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:20px;
-    line-height:1.6;
-  }
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1a0b10 0%, #000000 100%);
+        }
 
-  .right{
-    width:60%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    position:relative;
-  }
+        canvas {
+            display: block;
+        }
 
-  .click-text{
-    position:absolute;
-    right:20px;
-    top:50%;
-    transform:translateY(-50%);
-    font-size:18px;
-    opacity:.8;
-  }
+        /* --- UI LAYER --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-  svg{
-    width:300px;
-    height:400px;
-  }
+        /* The clickable heart button (HTML overlay for interaction) */
+        #start-btn {
+            pointer-events: auto;
+            cursor: pointer;
+            text-align: center;
+            z-index: 10;
+            transition: opacity 0.5s;
+        }
 
-  .hidden{ opacity:0; }
+        .heart-icon {
+            font-size: 80px;
+            color: #ff3366;
+            filter: drop-shadow(0 0 20px rgba(255, 51, 102, 0.8));
+            animation: pulse 1.5s infinite ease-in-out;
+        }
 
-  .seed{
-    fill:#ff9db5;
-  }
+        .instruction {
+            color: #ffaa80;
+            margin-top: 10px;
+            font-size: 18px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px #ffaa80;
+            font-weight: 500;
+        }
 
-  .trunk{
-    stroke:#ff9db5;
-    stroke-width:6;
-    fill:none;
-    stroke-linecap:round;
-  }
+        @keyframes pulse {
+            0% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(255, 51, 102, 0.6)); }
+            50% { transform: scale(1.15); filter: drop-shadow(0 0 35px rgba(255, 51, 102, 1)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(255, 51, 102, 0.6)); }
+        }
 
-  .branch{
-    stroke:#ff9db5;
-    stroke-width:4;
-    fill:none;
-    stroke-linecap:round;
-  }
+        /* --- MESSAGE BOX (Glassmorphism) --- */
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            transform: translateY(-50%);
+            width: 350px;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 2s ease, transform 2s ease;
+            pointer-events: none; 
+        }
 
-  .flower{
-    fill:#ff6f91;
-    opacity:0;
-    transform-origin:center;
-  }
-</style>
+        #message-box.visible {
+            opacity: 1;
+            transform: translateY(-50%) translateX(0);
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-family: 'Dancing Script', cursive;
+            color: #ff6685;
+            font-size: 42px;
+            margin: 0 0 15px 0;
+            text-shadow: 0 0 10px rgba(255, 102, 133, 0.5);
+        }
+
+        p {
+            color: #e0e0e0;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .highlight {
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 0 0 5px white;
+        }
+
+    </style>
 </head>
-
 <body>
 
-<div class="left" id="message">
-  Click the heart… 💗<br><br>
-  I just want you to know<br>
-  how special you are to me 🌸
-</div>
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div id="start-btn">
+                <div class="heart-icon">❤️</div>
+                <div class="instruction">Click Me</div>
+            </div>
 
-<div class="right">
-  <div class="click-text" id="clickText">Click me ❤️</div>
+            <div id="message-box">
+                <h1>Happy Birthday</h1>
+                <p>
+                    I know I messed up, and seeing you upset hurts me more than anything. I am truly sorry.
+                    <br><br>
+                    Like this tree, my love for you grows from the smallest seed into something beautiful and lasting. 
+                    <br><br>
+                    <span class="highlight">You make my world special. ❤️</span>
+                </p>
+            </div>
+        </div>
+    </div>
 
-  <svg viewBox="0 0 300 400">
+    <script>
+        /**
+         * ADVANCED CANVAS RENDERER
+         * Uses recursive logic for tree generation and particle systems for bloom.
+         */
+        
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('start-btn');
+        const messageBox = document.getElementById('message-box');
 
-    <!-- HEART -->
-    <path id="heart"
-      d="M150 120
-         C 150 90, 100 90, 100 120
-         C 100 150, 150 180, 150 200
-         C 150 180, 200 150, 200 120
-         C 200 90, 150 90, 150 120 Z"
-      fill="#ff6f91"
-      style="cursor:pointer"
-    />
+        let width, height;
+        let animationFrame;
+        
+        // State Management
+        const STATE = {
+            IDLE: 0,
+            DROPPING: 1,
+            GROWING: 2,
+            BLOOMING: 3,
+            FINISHED: 4
+        };
+        let currentState = STATE.IDLE;
 
-    <!-- SEED -->
-    <circle id="seed" cx="150" cy="200" r="6" class="seed hidden"/>
+        // Objects
+        let seed = { x: 0, y: 0, vy: 0, opacity: 1 };
+        let tree = []; // Array of branch segments
+        let leaves = []; // Array of leaf particles
+        
+        // Settings
+        const CONFIG = {
+            groundLevel: 0, // Calculated later
+            gravity: 0.5,
+            growSpeed: 3, // Segments per frame
+            maxDepth: 11,
+            branchColor: '#4a2f26', // Dark organic wood
+            bloomColor: { h: 340, s: 80, l: 60 } // HSL base for pink
+        };
 
-    <!-- TRUNK -->
-    <path id="trunk" d="M150 260 L150 160" class="trunk hidden"/>
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            CONFIG.groundLevel = height - 20; // 20px from bottom
+            
+            // Initial seed position (center screen)
+            if (currentState === STATE.IDLE) {
+                seed.x = width / 2;
+                seed.y = height / 2;
+            }
+        }
 
-    <!-- BRANCHES -->
-    <path id="b1" d="M150 180 L120 150" class="branch hidden"/>
-    <path id="b2" d="M150 180 L180 150" class="branch hidden"/>
+        window.addEventListener('resize', resize);
+        resize();
 
-    <!-- FLOWERS -->
-    <circle class="flower" cx="120" cy="150" r="6"/>
-    <circle class="flower" cx="180" cy="150" r="6"/>
-    <circle class="flower" cx="150" cy="140" r="7"/>
+        // --- INTERACTION ---
+        startBtn.addEventListener('click', () => {
+            if (currentState !== STATE.IDLE) return;
+            currentState = STATE.DROPPING;
+            
+            // Hide button fade out
+            startBtn.style.opacity = '0';
+            setTimeout(() => startBtn.style.display = 'none', 500);
 
-    <!-- GROUND -->
-    <line x1="80" y1="260" x2="220" y2="260" stroke="#555"/>
-  </svg>
-</div>
+            // Seed starts falling
+            seed.vy = -5; // Small jump up first
+            loop();
+        });
 
-<script>
-  const heart = document.getElementById("heart");
-  const seed = document.getElementById("seed");
-  const trunk = document.getElementById("trunk");
-  const branches = document.querySelectorAll(".branch");
-  const flowers = document.querySelectorAll(".flower");
-  const clickText = document.getElementById("clickText");
+        // --- CORE ANIMATION LOOP ---
+        function loop() {
+            // Clear with trail effect for bloom, but clean clear for tree
+            // We redraw everything every frame for smooth animation
+            ctx.clearRect(0, 0, width, height);
 
-  heart.addEventListener("click", () => {
-    clickText.style.display = "none";
+            if (currentState === STATE.DROPPING) {
+                updateSeed();
+                drawSeed();
+            } else if (currentState === STATE.GROWING || currentState === STATE.BLOOMING || currentState === STATE.FINISHED) {
+                // Keep drawing tree
+                drawTreeStatic();
+                
+                if (currentState === STATE.GROWING) {
+                    growTreeStep();
+                }
+                
+                if (currentState === STATE.BLOOMING || currentState === STATE.FINISHED) {
+                    updateAndDrawLeaves();
+                }
+            }
 
-    // Heart → seed
-    heart.animate([
-      { transform: "scale(1)", opacity:1 },
-      { transform: "scale(0.2)", opacity:0 }
-    ], { duration:600, fill:"forwards" });
+            animationFrame = requestAnimationFrame(loop);
+        }
 
-    setTimeout(()=>{
-      seed.classList.remove("hidden");
-      seed.animate([
-        { cy:200 },
-        { cy:260 }
-      ], { duration:600, fill:"forwards" });
-    },500);
+        // --- SEED PHYSICS ---
+        function updateSeed() {
+            seed.vy += CONFIG.gravity;
+            seed.y += seed.vy;
 
-    // Grow trunk
-    setTimeout(()=>{
-      trunk.classList.remove("hidden");
-      trunk.style.strokeDasharray = 120;
-      trunk.style.strokeDashoffset = 120;
-      trunk.animate([
-        { strokeDashoffset:120 },
-        { strokeDashoffset:0 }
-      ], { duration:800, fill:"forwards" });
-    },1200);
+            // Hit ground
+            if (seed.y >= CONFIG.groundLevel) {
+                seed.y = CONFIG.groundLevel;
+                // Bounce
+                seed.vy *= -0.4;
+                
+                // If velocity is negligible, start growing
+                if (Math.abs(seed.vy) < 0.5 && Math.abs(seed.y - CONFIG.groundLevel) < 1) {
+                    currentState = STATE.GROWING;
+                    initTree(); // Generate the skeleton
+                }
+            }
+        }
 
-    // Branches
-    setTimeout(()=>{
-      branches.forEach(b=>{
-        b.classList.remove("hidden");
-        b.style.strokeDasharray = 60;
-        b.style.strokeDashoffset = 60;
-        b.animate([
-          { strokeDashoffset:60 },
-          { strokeDashoffset:0 }
-        ], { duration:600, fill:"forwards" });
-      });
-    },2000);
+        function drawSeed() {
+            ctx.save();
+            ctx.translate(seed.x, seed.y);
+            
+            // Glowing ball
+            const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 20);
+            glow.addColorStop(0, 'white');
+            glow.addColorStop(0.2, '#ff3366');
+            glow.addColorStop(1, 'rgba(255, 51, 102, 0)');
+            
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
 
-    // Flowers bloom
-    setTimeout(()=>{
-      flowers.forEach((f,i)=>{
-        f.animate([
-          { transform:"scale(0)", opacity:0 },
-          { transform:"scale(1)", opacity:1 }
-        ], { duration:500, delay:i*150, fill:"forwards" });
-      });
-    },2600);
-  });
-</script>
+        // --- TREE GENERATION (Recursive Data Structure) ---
+        let branchesToAnimate = [];
+        let completedBranches = [];
 
+        function initTree() {
+            // Start the trunk
+            growBranch(width / 2, height, -90, 130, CONFIG.maxDepth, 18);
+        }
+
+        function growBranch(x, y, angle, length, depth, thickness) {
+            // Calculate end point with some randomness for organic look
+            const rad = angle * Math.PI / 180;
+            const endX = x + length * Math.cos(rad);
+            const endY = y + length * Math.sin(rad);
+
+            // Control points for Bezier curve (curved branches)
+            // We create a slight curve by offsetting the midpoint
+            const midX = (x + endX) / 2 + (Math.random() - 0.5) * length * 0.2;
+            const midY = (y + endY) / 2 + (Math.random() - 0.5) * length * 0.2;
+
+            const branch = {
+                x: x, y: y,
+                cpX: midX, cpY: midY, // Control point
+                endX: endX, endY: endY,
+                thickness: thickness,
+                depth: depth,
+                color: `hsl(25, 40%, ${15 + (10 - depth) * 4}%)`, // Gradient wood color
+                progress: 0, // Animation progress 0 to 1
+                finished: false,
+                children: [] // Data for next branches
+            };
+
+            branchesToAnimate.push(branch);
+
+            // Prepare children if depth > 0
+            if (depth > 0) {
+                const subLength = length * 0.75;
+                const subThickness = thickness * 0.7;
+                
+                // 2 branches usually
+                const numBranches = 2;
+                
+                for (let i = 0; i < numBranches; i++) {
+                    const angleOffset = (Math.random() * 50) - 25; // -25 to +25 degrees
+                    // Spread branches out
+                    let newAngle = angle + (i === 0 ? -20 : 20) + (Math.random()*10 - 5);
+                    
+                    // Delay creation of children until parent finishes in the animation loop
+                    branch.children.push({
+                        params: [endX, endY, newAngle, subLength, depth - 1, subThickness]
+                    });
+                }
+            } else {
+                // This is a tip, prepare leaves
+                prepareLeaves(endX, endY);
+            }
+        }
+
+        function growTreeStep() {
+            let active = false;
+            
+            // Sort by depth so bottom grows first (visual trick)
+            // Actually, we iterate through existing active branches
+            for (let i = 0; i < branchesToAnimate.length; i++) {
+                let b = branchesToAnimate[i];
+                if (!b.finished) {
+                    active = true;
+                    b.progress += 0.05; // Growth speed
+                    if (b.progress >= 1) {
+                        b.progress = 1;
+                        b.finished = true;
+                        
+                        // Spawn children
+                        b.children.forEach(child => {
+                            growBranch(...child.params);
+                        });
+                        
+                        // Move to completed list for optimized rendering if we wanted, 
+                        // but here we just keep one list for simplicity.
+                    }
+                }
+            }
+
+            if (!active && branchesToAnimate.length > 0) {
+                // All branches done
+                currentState = STATE.BLOOMING;
+                setTimeout(() => {
+                   messageBox.classList.add('visible');
+                }, 1000);
+            }
+        }
+
+        function drawTreeStatic() {
+            ctx.lineCap = 'round';
+            
+            for (let b of branchesToAnimate) {
+                ctx.beginPath();
+                ctx.moveTo(b.x, b.y);
+                
+                // Interpolate curve based on progress
+                if (b.progress < 1) {
+                    const currentEndX = b.x + (b.endX - b.x) * b.progress;
+                    const currentEndY = b.y + (b.endY - b.y) * b.progress;
+                    const currentCpX = b.x + (b.cpX - b.x) * b.progress;
+                    const currentCpY = b.y + (b.cpY - b.y) * b.progress;
+                    ctx.quadraticCurveTo(currentCpX, currentCpY, currentEndX, currentEndY);
+                } else {
+                    ctx.quadraticCurveTo(b.cpX, b.cpY, b.endX, b.endY);
+                }
+
+                ctx.lineWidth = b.thickness;
+                ctx.strokeStyle = b.color;
+                
+                // Shadow for depth
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                
+                ctx.stroke();
+                
+                // Reset shadow
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // --- LEAF SYSTEM (Particles) ---
+        function prepareLeaves(x, y) {
+            // Create a bunch of leaves at this tip
+            const count = 15; // Leaves per tip
+            for (let i = 0; i < count; i++) {
+                leaves.push({
+                    x: x, 
+                    y: y,
+                    finalX: x + (Math.random() * 60 - 30),
+                    finalY: y + (Math.random() * 60 - 30),
+                    size: Math.random() * 8 + 4,
+                    color: `hsla(${330 + Math.random() * 40}, 80%, 60%, ${Math.random()*0.5 + 0.5})`,
+                    rotation: Math.random() * Math.PI * 2,
+                    delay: Math.random() * 100, // Staggered bloom
+                    progress: 0,
+                    swaySpeed: 0.02 + Math.random() * 0.03,
+                    swayOffset: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function updateAndDrawLeaves() {
+            const time = Date.now() * 0.001;
+            
+            for (let l of leaves) {
+                // Bloom animation
+                if (l.progress < 1) {
+                    l.progress += 0.02;
+                }
+
+                // Swaying in wind logic
+                const swayX = Math.sin(time + l.swayOffset) * 5;
+                const swayY = Math.cos(time + l.swayOffset) * 2;
+
+                const currentX = l.x + (l.finalX - l.x) * l.progress + swayX;
+                const currentY = l.y + (l.finalY - l.y) * l.progress + swayY;
+                const currentScale = l.progress;
+
+                drawHeartShape(currentX, currentY, l.size * currentScale, l.rotation, l.color);
+            }
+        }
+
+        function drawHeartShape(x, y, size, rotation, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            ctx.fillStyle = color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = color; // Glowy leaves
+
+            ctx.beginPath();
+            // Complex heart path
+            const topCurveHeight = size * 0.3;
+            ctx.moveTo(0, topCurveHeight);
+            ctx.bezierCurveTo(0, 0, -size / 2, 0, -size / 2, topCurveHeight);
+            ctx.bezierCurveTo(-size / 2, size / 2, 0, size * 0.8, 0, size);
+            ctx.bezierCurveTo(0, size * 0.8, size / 2, size / 2, size / 2, topCurveHeight);
+            ctx.bezierCurveTo(size / 2, 0, 0, 0, 0, topCurveHeight);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+    </script>
 </body>
 </html>
