@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>For You 💕</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,300&family=Montserrat:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#08000f;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+
+#bg{
+  position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse 130% 80% at 15% 8%,  rgba(130,0,90,0.6)  0%,transparent 55%),
+    radial-gradient(ellipse 100% 70% at 85% 5%,  rgba(70,0,130,0.55) 0%,transparent 50%),
+    radial-gradient(ellipse 90%  65% at 50% 95%, rgba(170,20,65,0.45) 0%,transparent 50%),
+    radial-gradient(ellipse 60%  55% at 8%  65%, rgba(90,0,110,0.38)  0%,transparent 50%),
+    linear-gradient(160deg,#0d0018 0%,#07000e 45%,#110008 100%);
+  animation:aurora 20s ease-in-out infinite alternate;
+}
+@keyframes aurora{
+  0%  {filter:hue-rotate(0deg)  brightness(1)}
+  50% {filter:hue-rotate(18deg) brightness(1.09)}
+  100%{filter:hue-rotate(-12deg)brightness(0.94)}
+}
+
+/* Stars */
+#stars{position:fixed;inset:0;z-index:1;pointer-events:none}
+.star{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--d) ease-in-out infinite alternate;animation-delay:var(--dl);opacity:0}
+@keyframes twinkle{to{opacity:var(--op)}}
+
+canvas{position:fixed;inset:0;width:100%;height:100%;z-index:2}
+
+/* Falling petals layer */
+#petals{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+
+/* Start button */
+#startWrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;transition:opacity .7s}
+.pulseHeart{font-size:clamp(68px,17vw,90px);filter:drop-shadow(0 0 30px #ff336699);animation:beat 1.4s ease-in-out infinite;cursor:pointer;user-select:none;-webkit-user-select:none}
+@keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.2)}28%{transform:scale(1)}42%{transform:scale(1.11)}70%{transform:scale(1)}}
+.tapLabel{margin-top:12px;color:rgba(255,200,220,.82);font-family:'Montserrat',sans-serif;font-size:clamp(11px,3.2vw,14px);letter-spacing:.28em;text-transform:uppercase;text-shadow:0 0 14px rgba(255,100,150,.55)}
+
+/* Reveal button */
+#revealBtn{
+  position:fixed;bottom:clamp(28px,6vh,52px);left:50%;transform:translateX(-50%) translateY(20px);
+  z-index:25;opacity:0;pointer-events:none;
+  transition:opacity 1.8s ease, transform 1.8s cubic-bezier(.22,1,.36,1);
+  text-decoration:none;
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,rgba(255,80,130,.18),rgba(180,40,100,.12));
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,150,190,.28);
+  border-radius:50px;
+  padding:clamp(12px,3vw,16px) clamp(22px,6vw,34px);
+  color:#ffd0e0;
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;font-weight:300;
+  font-size:clamp(17px,4.5vw,22px);
+  letter-spacing:.06em;
+  box-shadow:0 0 30px rgba(255,60,110,.18),0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.09);
+  white-space:nowrap;
+  cursor:pointer;
+}
+#revealBtn.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+#revealBtn:hover,#revealBtn:active{
+  background:linear-gradient(135deg,rgba(255,100,150,.28),rgba(200,50,110,.2));
+  box-shadow:0 0 50px rgba(255,80,130,.35),0 8px 40px rgba(0,0,0,.5);
+}
+#revealBtn .btn-heart{font-size:1.1em;animation:beat 1.8s ease-in-out infinite}
+#revealBtn .btn-arrow{font-size:.85em;opacity:.7;margin-left:2px}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="stars"></div>
+<div id="petals"></div>
+<canvas id="c"></canvas>
+
+<div id="startWrap">
+  <div class="pulseHeart" id="startBtn">❤️</div>
+  <div class="tapLabel">Tap to begin</div>
+</div>
+
+<!-- This link opens the letter page -->
+<a id="revealBtn" href="letter.html" target="_blank">
+  <span class="btn-heart">🌸</span>
+  Open My Letter to You
+  <span class="btn-arrow">→</span>
+</a>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d',{alpha:true});
+
+// TWO offscreen canvases:
+// treeOff  = branches (committed once per branch, never redrawn)
+// bloomOff = fully baked leaves (painted once at end, blit every frame)
+const treeOff  = new OffscreenCanvas(1,1);
+const toctx    = treeOff.getContext('2d');
+const bloomOff = new OffscreenCanvas(1,1);
+const boctx    = bloomOff.getContext('2d');
+
+let W,H,SC;
+const S={IDLE:0,DROP:1,GROW:2,BLOOM:3,DONE:4};
+let state=S.IDLE;
+let raf, lastT=0;
+
+let seed={x:0,y:0,vy:0};
+let branches=[];
+let pendingLeaves=[];   // (x,y) tips waiting to be baked
+let bloomBaked=false;
+let revealBtn=document.getElementById('revealBtn');
+
+/* ── STARS ── */
+(()=>{
+  const c=document.getElementById('stars');
+  for(let i=0;i<180;i++){
+    const el=document.createElement('div');
+    el.className='star';
+    const s=Math.random()*2+.4;
+    el.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*82}%;width:${s}px;height:${s}px;--d:${(Math.random()*4+1.5).toFixed(1)}s;--dl:${(Math.random()*7).toFixed(1)}s;--op:${(Math.random()*.7+.15).toFixed(2)}`;
+    c.appendChild(el);
+  }
+})();
+
+/* ── RESIZE ── */
+function resize(){
+  W=canvas.width=treeOff.width=bloomOff.width=window.innerWidth;
+  H=canvas.height=treeOff.height=bloomOff.height=window.innerHeight;
+  SC=Math.min(W,H)/680;
+  if(state===S.IDLE){seed.x=W/2;seed.y=H/2}
+}
+window.addEventListener('resize',resize); resize();
+
+/* ── START ── */
+function begin(){
+  if(state!==S.IDLE)return;
+  state=S.DROP; seed.vy=-6;
+  document.getElementById('startWrap').style.opacity='0';
+  setTimeout(()=>document.getElementById('startWrap').style.display='none',700);
+  raf=requestAnimationFrame(loop);
+}
+document.getElementById('startBtn').addEventListener('click',begin);
+document.getElementById('startBtn').addEventListener('touchstart',e=>{e.preventDefault();begin()},{passive:false});
+
+/* ── MAIN LOOP ── */
+function loop(t){
+  const dt=Math.min((t-lastT)/16.67,2.5); lastT=t;
+  ctx.clearRect(0,0,W,H);
+
+  if(state===S.DROP){
+    stepSeed(dt); drawSeed();
+  } else if(state>=S.GROW){
+    // Blit static tree (free)
+    ctx.drawImage(treeOff,0,0);
+    // Blit baked bloom (free once baked)
+    if(bloomBaked) ctx.drawImage(bloomOff,0,0);
+    // Active growing branches
+    drawGrowing();
+    if(state===S.GROW) stepGrow(dt);
+    // Swaying overlay only in BLOOM (lightweight sine on baked image)
+    if(state===S.BLOOM||state===S.DONE) drawSwayOverlay(t);
+  }
+  raf=requestAnimationFrame(loop);
+}
+
+/* ── SEED ── */
+function stepSeed(dt){
+  seed.vy+=0.52*dt; seed.y+=seed.vy*dt;
+  if(seed.y>=H-18){
+    seed.y=H-18; seed.vy*=-0.4;
+    if(Math.abs(seed.vy)<0.55){state=S.GROW;buildTree()}
+  }
+}
+function drawSeed(){
+  const g=ctx.createRadialGradient(seed.x,seed.y,1,seed.x,seed.y,22);
+  g.addColorStop(0,'#fff');
+  g.addColorStop(.18,'#ff2255');
+  g.addColorStop(.55,'rgba(255,30,80,.3)');
+  g.addColorStop(1,'transparent');
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(seed.x,seed.y,22,0,Math.PI*2);ctx.fill();
+}
+
+/* ── TREE ── */
+function buildTree(){
+  branches=[];pendingLeaves=[];bloomBaked=false;
+  toctx.clearRect(0,0,W,H);
+  boctx.clearRect(0,0,W,H);
+  spawn(W/2,H,-90,124*SC,10,15*SC);
+}
+
+function spawn(x,y,ang,len,depth,thick){
+  const r=ang*Math.PI/180;
+  const ex=x+len*Math.cos(r), ey=y+len*Math.sin(r);
+  const cx=(x+ex)/2+(Math.random()-.5)*len*.22;
+  const cy=(y+ey)/2+(Math.random()-.5)*len*.22;
+  const L=13+(10-depth)*4;
+  branches.push({x,y,cx,cy,ex,ey,thick,depth,color:`hsl(22,40%,${L}%)`,prog:0,done:false,children:depth>0?makeKids(ex,ey,ang,len,depth,thick):null,ex,ey});
+}
+
+function makeKids(ex,ey,ang,len,depth,thick){
+  return[
+    [ex,ey,ang+(-19+(Math.random()*10-5)),len*.74,depth-1,thick*.69],
+    [ex,ey,ang+(19+(Math.random()*10-5)),len*.74,depth-1,thick*.69]
+  ];
+}
+
+const GSPD=0.065;
+function stepGrow(dt){
+  let any=false;
+  for(const b of branches){
+    if(b.done)continue;
+    any=true;
+    b.prog=Math.min(1,b.prog+GSPD*dt);
+    if(b.prog>=1){
+      b.done=true;
+      commitBranch(b);
+      if(b.children) b.children.forEach(p=>spawn(...p));
+      else pendingLeaves.push({x:b.ex,y:b.ey});
+    }
+  }
+  if(!any&&branches.length>0){
+    state=S.BLOOM;
+    bakeBloom();          // paint ALL leaves once onto bloomOff
+    spawnCSSpetals();
+    setTimeout(()=>revealBtn.classList.add('show'),1200);
+  }
+}
+
+function commitBranch(b){
+  toctx.save();
+  toctx.lineCap='round';
+  // glow halo
+  toctx.globalAlpha=.22;
+  toctx.lineWidth=b.thick*1.8;
+  toctx.strokeStyle=`hsl(22,65%,${parseInt(b.color.match(/\d+(?=%)/)[0])+22}%)`;
+  toctx.beginPath();toctx.moveTo(b.x,b.y);toctx.quadraticCurveTo(b.cx,b.cy,b.ex,b.ey);toctx.stroke();
+  // solid bark
+  toctx.globalAlpha=1;
+  toctx.lineWidth=b.thick;
+  toctx.strokeStyle=b.color;
+  toctx.beginPath();toctx.moveTo(b.x,b.y);toctx.quadraticCurveTo(b.cx,b.cy,b.ex,b.ey);toctx.stroke();
+  toctx.restore();
+}
+
+function drawGrowing(){
+  ctx.save();ctx.lineCap='round';
+  for(const b of branches){
+    if(b.done)continue;
+    const p=b.prog;
+    const ex=b.x+(b.ex-b.x)*p, ey=b.y+(b.ey-b.y)*p;
+    const ccx=b.x+(b.cx-b.x)*p, ccy=b.y+(b.cy-b.y)*p;
+    ctx.lineWidth=b.thick; ctx.strokeStyle=b.color;
+    ctx.shadowBlur=7; ctx.shadowColor='rgba(255,80,40,.2)';
+    ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.quadraticCurveTo(ccx,ccy,ex,ey);ctx.stroke();
+  }
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+/* ─────────────────────────────────────────────────────
+   BAKE ALL LEAVES ONCE onto bloomOff canvas.
+   After this, every frame is just ONE ctx.drawImage() call.
+   Zero per-leaf cost at runtime.
+───────────────────────────────────────────────────── */
+// sway data stored separately for the lightweight overlay
+let swayLeaves=[];
+
+function bakeBloom(){
+  const perTip = W<600 ? 10 : 14;
+  swayLeaves=[];
+  boctx.save();
+  for(const tip of pendingLeaves){
+    for(let i=0;i<perTip;i++){
+      const hue=328+Math.random()*44;
+      const sz=(Math.random()*7+4)*SC;
+      const fx=tip.x+(Math.random()*56-28)*SC;
+      const fy=tip.y+(Math.random()*56-28)*SC;
+      const rot=Math.random()*Math.PI*2;
+      const a=0.55+Math.random()*.45;
+
+      // Bake static position
+      boctx.save();
+      boctx.translate(fx,fy);
+      boctx.rotate(rot);
+      boctx.fillStyle=`hsla(${hue},82%,62%,${a})`;
+      boctx.shadowBlur=9;
+      boctx.shadowColor=`hsla(${hue},90%,70%,.55)`;
+      heartPath(boctx,sz);
+      boctx.fill();
+      boctx.restore();
+
+      // Save sway metadata (lightweight overlay)
+      swayLeaves.push({x:fx,y:fy,sz,rot,hue,a,sw:Math.random()*Math.PI*2});
+    }
+  }
+  boctx.restore();
+  bloomBaked=true;
+}
+
+/* ─────────────────────────────────────────────────────
+   SWAY OVERLAY — only draws a small SUBSET of leaves
+   with subtle transform each frame. Very cheap.
+───────────────────────────────────────────────────── */
+const SWAY_COUNT = Math.min(swayLeaves.length, W<600?60:120);
+
+function drawSwayOverlay(t){
+  if(!bloomBaked||swayLeaves.length===0)return;
+  const time=t*.001;
+  ctx.save();
+  const count=Math.min(swayLeaves.length, W<600?55:110);
+  const step=Math.max(1,Math.floor(swayLeaves.length/count));
+  for(let i=0;i<swayLeaves.length;i+=step){
+    const l=swayLeaves[i];
+    const sx=Math.sin(time*.9+l.sw)*4;
+    const sy=Math.cos(time*.65+l.sw)*2;
+    const dr=Math.sin(time*.4+l.sw)*.12;
+    ctx.save();
+    ctx.translate(l.x+sx,l.y+sy);
+    ctx.rotate(l.rot+dr);
+    ctx.fillStyle=`hsla(${l.hue},82%,62%,${l.a*.9})`;
+    ctx.shadowBlur=6;
+    ctx.shadowColor=`hsla(${l.hue},90%,70%,.4)`;
+    heartPath(ctx,l.sz);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function heartPath(c,s){
+  const t=s*.3;
+  c.beginPath();
+  c.moveTo(0,t);
+  c.bezierCurveTo(0,0,-s/2,0,-s/2,t);
+  c.bezierCurveTo(-s/2,s/2,0,s*.8,0,s);
+  c.bezierCurveTo(0,s*.8,s/2,s/2,s/2,t);
+  c.bezierCurveTo(s/2,0,0,0,0,t);
+  c.closePath();
+}
+
+/* ── CSS FALLING PETALS (DOM only, zero canvas) ── */
+function spawnCSSpetals(){
+  const cont=document.getElementById('petals');
+  const n=W<600?20:32;
+  const style=document.createElement('style');
+  style.textContent=`@keyframes petalFall{
+    0%  {transform:translateY(-20px) rotate(0deg) translateX(0);opacity:0}
+    6%  {opacity:.85}
+    94% {opacity:.6}
+    100%{transform:translateY(${H+30}px) rotate(800deg) translateX(${(Math.random()*80-40).toFixed(0)}px);opacity:0}
+  }`;
+  document.head.appendChild(style);
+
+  for(let i=0;i<n;i++){
+    setTimeout(()=>{
+      const p=document.createElement('div');
+      const sz=Math.random()*11+5;
+      const hue=326+Math.random()*46;
+      const dur=(Math.random()*9+7).toFixed(1);
+      const del=(Math.random()*3).toFixed(1);
+      p.style.cssText=`position:absolute;left:${Math.random()*110-5}%;top:-${sz+12}px;width:${sz}px;height:${sz}px;animation:petalFall ${dur}s ${del}s linear infinite`;
+      p.innerHTML=`<svg viewBox="0 0 20 18" width="${sz}" height="${sz}"><path d="M10 16s-9-5.5-9-10a5 5 0 0110 0 5 5 0 0110 0c0 4.5-10 10-10 10z" fill="hsl(${hue},82%,66%)" opacity=".88"/></svg>`;
+      cont.appendChild(p);
+    },i*280+600);
+  }
+}
+</script>
+</body>
+</html>
